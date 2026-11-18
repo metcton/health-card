@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1565c0">
+<title>ดูแลเอง หรือ ติดต่อโรงพยาบาล?</title>
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --main:#1565c0; --main2:#42a5f5;   /* สีหลัก (โทนฟ้าให้เข้ากับการ์ด) */
+    --self:#16a34a; --doc:#dc2626;     /* สีปุ่ม ดูแลเอง / ไปพบแพทย์ */
+    --bg:#e3f2fd;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  [hidden]{display:none!important}
+  body{font-family:'Prompt',sans-serif;background:var(--bg);color:#1f2937;
+       touch-action:manipulation;overscroll-behavior:none;-webkit-user-select:none;user-select:none}
+  body.lock{overflow:hidden}
+  input{-webkit-user-select:text;user-select:text}
+  button{font:inherit;border:0;cursor:pointer;-webkit-appearance:none;appearance:none}
+  img{-webkit-touch-callout:none;-webkit-user-drag:none}
+
+  /* ---------- หน้าจอทั่วไป ---------- */
+  .screen{display:none;flex-direction:column;gap:12px;max-width:480px;margin:0 auto;
+          min-height:100vh;min-height:100dvh;padding:16px 16px calc(24px + env(safe-area-inset-bottom))}
+  .screen.active{display:flex}
+  h1{font-size:26px;line-height:1.3;color:var(--main);text-align:center}
+  h3{color:var(--main)}
+  .logo{text-align:center}
+  .box{background:#fff;border-radius:16px;padding:16px;box-shadow:0 2px 10px rgba(0,0,0,.06)}
+  .rules{padding-left:20px;line-height:1.8}
+  label{display:block;font-weight:600;margin:8px 0 4px}
+  input{width:100%;font:inherit;font-size:16px;padding:12px 14px;border:2px solid #cbd5e1;border-radius:12px}
+  input.error{border-color:var(--doc)}
+  .btn{width:100%;padding:16px;border-radius:14px;font-size:18px;font-weight:600;color:#fff;
+       background:var(--main);box-shadow:0 4px 0 rgba(0,0,0,.18)}
+  .btn:active{transform:translateY(3px);box-shadow:none}
+  .btn.ghost{background:#fff;color:var(--main);border:2px solid var(--main);box-shadow:none}
+  .center{text-align:center}
+  .note{font-size:14px;color:#64748b;text-align:center}
+  .warn{background:#fef3c7;border:2px solid #f59e0b;border-radius:12px;padding:12px;font-size:14px;line-height:1.6}
+
+  /* ---------- หน้าเกม: กองการ์ด ---------- */
+  .topbar{position:sticky;top:0;z-index:2;display:flex;flex-direction:column;gap:8px;padding:8px 0;background:var(--bg)}
+  .hud{display:flex;justify-content:space-between;font-size:18px;font-weight:600}
+  .bar{height:10px;background:#bbdefb;border-radius:99px;overflow:hidden}
+  .bar div{height:100%;width:0;background:var(--main2);transition:width .4s}
+  .grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+  .mini{position:relative;aspect-ratio:1/1;min-height:64px;border-radius:12px;border:3px solid #fff;
+        color:#fff;font-size:30px;font-weight:600;
+        background:linear-gradient(135deg,var(--main),var(--main2));box-shadow:0 3px 0 rgba(0,0,0,.2);
+        animation:deal .4s ease backwards;animation-delay:calc(var(--i) * 25ms)}
+  .mini:active{transform:scale(.92)}
+  .mini:disabled{opacity:1;cursor:default}
+  .mini.done{background:#fff center/cover no-repeat;box-shadow:none}   /* การ์ดที่ตอบแล้ว: โชว์รูปจริง */
+  .mini.right{border-color:var(--self)}
+  .mini.wrong{border-color:var(--doc)}
+  .mini.done::after{content:attr(data-mark);position:absolute;top:3px;right:3px;width:24px;height:24px;
+        border-radius:50%;background:var(--self);color:#fff;font-size:14px;line-height:24px;box-shadow:0 0 0 2px #fff}
+  .mini.wrong::after{background:var(--doc)}
+  @keyframes deal{from{opacity:0;transform:translateY(-30px) scale(.5)}}
+
+  /* ---------- ป๊อปอัปการ์ดใบใหญ่ + เอฟเฟกต์พลิก ---------- */
+  .modal{position:fixed;top:0;right:0;bottom:0;left:0;z-index:10;display:none;
+         align-items:center;justify-content:center;padding:16px;background:rgba(15,23,42,.7)}
+  .modal.open{display:flex}
+  .sheet{width:100%;max-width:420px;max-height:100%;overflow-y:auto;overscroll-behavior:contain;
+         display:flex;flex-direction:column;align-items:center;gap:12px}
+  .pill{flex-shrink:0;padding:4px 16px;border-radius:99px;background:rgba(255,255,255,.2);color:#fff;font-weight:600}
+  .flip{flex-shrink:0;perspective:1200px;   /* การ์ดสี่เหลี่ยมจัตุรัส ปรับขนาดตามจอ */
+        width:min(100vw - 32px, 50vh, 400px);height:min(100vw - 32px, 50vh, 400px)}
+  .flip-inner{position:relative;width:100%;height:100%;transition:transform .6s;transform-style:preserve-3d}
+  .flip.flipped .flip-inner{transform:rotateY(180deg)}
+  .flip.instant .flip-inner{transition:none}
+  .face{position:absolute;top:0;left:0;width:100%;height:100%;border-radius:20px;
+        display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
+        -webkit-backface-visibility:hidden;backface-visibility:hidden}
+  .back{background:linear-gradient(135deg,var(--main),var(--main2));color:#fff;font-size:90px;
+        border:6px solid #fff;transform:rotateY(0deg)}
+  .front{background:#fff;transform:rotateY(180deg)}
+  .front img{width:100%;height:100%;object-fit:contain;border-radius:20px;pointer-events:none}
+  .fallback{display:flex;flex-direction:column;gap:8px;padding:24px;font-size:22px;font-weight:600;color:var(--main)}
+  .fallback small{font-size:14px;font-weight:400;color:var(--doc)}
+  .answers{width:100%;display:grid;grid-template-columns:1fr 1fr;gap:10px;opacity:0;pointer-events:none;transition:opacity .3s}
+  .answers.show{opacity:1;pointer-events:auto}
+  .answers .btn{padding:18px 6px;font-size:17px}
+  .btn.self{background:var(--self)}
+  .btn.doc{background:var(--doc)}
+  #feedback{width:100%}
+  .fb-title{font-size:22px;font-weight:600}
+  .ok{color:var(--self)}
+  .no{color:var(--doc)}
+  .fb-tip{margin-top:10px;padding:10px 12px;border-radius:10px;background:#f1f5f9;text-align:left;line-height:1.6}
+  #nextBtn{margin-top:14px}
+
+  /* ---------- หน้าสรุปผล ---------- */
+  .score-circle{width:170px;height:170px;margin:0 auto;border-radius:50%;background:#fff;
+                border:10px solid var(--main2);text-align:center;line-height:150px;
+                font-size:56px;font-weight:600;color:var(--main)}
+  .score-circle small{font-size:24px;color:#64748b}
+  .review{list-style:none;display:flex;flex-direction:column;gap:10px}
+  .review li{display:flex;align-items:center;gap:12px;background:#fff;border-radius:12px;padding:10px;
+             line-height:1.6;border-left:6px solid var(--self)}
+  .review li.wrong{border-left-color:var(--doc)}
+  .review img{width:80px;height:80px;flex-shrink:0;border-radius:10px;object-fit:cover;background:#e2e8f0}
+  .review small{color:#475569}
+  .zoom{position:fixed;top:0;right:0;bottom:0;left:0;z-index:20;display:flex;align-items:center;
+        justify-content:center;padding:16px;background:rgba(15,23,42,.85)}
+  .zoom img{width:100%;max-width:480px;border-radius:16px}
+</style>
+</head>
+<body ontouchstart="">
+
+<!-- ========== 1) หน้าเริ่มเกม ========== -->
+<section id="start" class="screen active">
+  <div class="logo">
+		<img src="cards/head.png" class="img" alt="">  
+	  </div>
+   <div class="box">
+    <ol class="rules">
+      <li>เลือกหยิบการ์ด <b id="ruleN"></b> ใบ จากทั้งหมด <b id="ruleTotal"></b> ใบ</li>
+      <li>ดูอาการบนการ์ด แล้วเลือก <b>ดูแลเอง</b> หรือ <b>ติดต่อโรงพยาบาล</b></li>
+      <li>ตอบถูกได้ 1 คะแนน (เต็ม <b id="ruleMax"></b> คะแนน)</li>
+    </ol>
+  </div>
+  <div class="box">
+    <label for="name">ชื่อ-นามสกุล *</label>
+    <input id="name" maxlength="60" placeholder="พิมพ์ชื่อของคุณ">
+    <label for="group">ความเกี่ยวข้องกับผู้ป่วย</label>
+    <input id="group" maxlength="60" placeholder="เช่น พ่อ, แม่ หรือ ญาติ">
+  </div>
+  <div id="setupWarn" class="warn" hidden></div>
+  <button id="startBtn" class="btn">เริ่มเกม ▶</button>
+  <p id="loadStatus" class="note"></p>
+</section>
+
+<!-- ========== 2) หน้าเกม (กองการ์ด) ========== -->
+<section id="game" class="screen">
+  <div class="topbar">
+    <div class="hud">
+      <span> การ์ด <b id="count">0/10</b></span>
+      <span>⭐ คะแนน <b id="score">0</b></span>
+    </div>
+    <div class="bar"><div id="progress"></div></div>
+  </div>
+  <p class="center">👆 แตะเลือกการ์ดที่ต้องการหยิบ</p>
+  <div id="grid" class="grid"></div>
+</section>
+
+<!-- ========== 3) หน้าสรุปผล ========== -->
+<section id="result" class="screen">
+  <h1>สรุปผลคะแนน</h1>
+  <div id="finalScore" class="score-circle"></div>
+  <p id="scoreMsg" class="center fb-title"></p>
+  <p id="playerInfo" class="center"></p>
+  <p id="sendStatus" class="center" style="font-weight:600"></p>
+  <button id="retryBtn" class="btn ghost" hidden>ส่งคะแนนอีกครั้ง</button>
+  <h3>📋 เฉลยการ์ดที่คุณหยิบ</h3>
+  <p class="note">แตะที่รูปเพื่อดูการ์ดขนาดใหญ่</p>
+  <ol id="review" class="review"></ol>
+  <button id="againBtn" class="btn">เล่นอีกครั้ง 🔄</button>
+</section>
+
+<!-- ========== ป๊อปอัปการ์ดใบใหญ่ ========== -->
+<div id="modal" class="modal">
+  <div id="sheet" class="sheet">
+    <div id="cardNo" class="pill"></div>
+    <div id="flip" class="flip">
+      <div class="flip-inner">
+        <div id="backFace" class="face back">✚</div>
+        <div class="face front">
+          <img id="cardImg" alt="">
+          <div id="cardFallback" class="fallback" hidden></div>
+        </div>
+      </div>
+    </div>
+    <div id="answers" class="answers">
+      <button class="btn self" onclick="answer('self')">🏠 ดูแลเอง</button>
+      <button class="btn doc" onclick="answer('doctor')">🏥 ติดต่อโรงพยาบาล</button>
+    </div>
+    <div id="feedback" class="box center" hidden>
+      <div id="fbTitle" class="fb-title"></div>
+      <div id="fbAnswer"></div>
+      <div id="fbTip" class="fb-tip"></div>
+      <button id="nextBtn" class="btn"></button>
+    </div>
+  </div>
+</div>
+
+<!-- ========== ดูรูปการ์ดขนาดใหญ่ (หน้าสรุปผล) ========== -->
+<div id="zoom" class="zoom" hidden><img id="zoomImg" alt=""></div>
+
+<script>
+/* =====================================================
+   ⚙️ ตั้งค่า
+   ===================================================== */
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxcmXJxVUoxBMBikUPjqAh4yhamwkOljfbgGAZieY89jzo9j7KVPe523uE-2zB51Vk_/exec';   // ใช้ URL เดิมได้เลย (ลงท้ายด้วย /exec)
+const CARDS_PER_GAME = 10;                               // จำนวนการ์ดที่หยิบต่อเกม
+
+/* =====================================================
+   🃏 การ์ดรูปภาพทั้งหมด 24 ใบ (1 บรรทัด = 1 ใบ)
+   img  = ที่อยู่ไฟล์รูป (โฟลเดอร์ cards ข้างไฟล์นี้)
+   name = ชื่อการ์ด แสดงในหน้าสรุปผล
+   a    = เฉลย 'self' = ดูแลเอง | 'doctor' = ติดต่อโรงพยาบาล  ← ต้องใส่ทุกใบ
+   tip  = คำแนะนำที่แสดงหลังตอบ (เว้นว่าง '' ได้)
+   ===================================================== */
+const CARDS = [
+  {img:'cards/01.png', name:'การ์ดใบที่ 1',    a:'self', tip:'เป็นอาการที่สามารถดูแลเองได้'},
+  {img:'cards/02.png', name:'การ์ดใบที่ 2',    a:'self', tip:'เป็นอาการที่สามารถดูแลเองได้'},
+  {img:'cards/03.png', name:'การ์ดใบที่ 3',    a:'self', tip:'เป็นอาการที่สามารถดูแลเองได้'},
+  {img:'cards/04.png', name:'การ์ดใบที่ 4',    a:'self', tip:'เป็นอาการที่สามารถดูแลเองได้'},
+  {img:'cards/05.png', name:'การ์ดใบที่ 5',    a:'self', tip:'เป็นอาการที่สามารถดูแลเองได้'},
+  {img:'cards/06.png', name:'การ์ดใบที่ 6',    a:'self', tip:'เป็นอาการที่สามารถดูแลเองได้'},
+  {img:'cards/07.png', name:'การ์ดใบที่ 7',    a:'self', tip:'เป็นอาการที่สามารถดูแลเองได้'},
+  {img:'cards/08.png', name:'การ์ดใบที่ 8',    a:'self', tip:'เป็นอาการที่สามารถดูแลเองได้'},
+  {img:'cards/09.png', name:'การ์ดใบที่ 9',    a:'self', tip:'เป็นอาการที่สามารถดูแลเองได้'},
+  {img:'cards/10.png', name:'การ์ดใบที่ 10',   a:'self', tip:'เป็นอาการที่สามารถดูแลเองได้'},
+  {img:'cards/11.png', name:'การ์ดใบที่ 11',   a:'self', tip:'เป็นอาการที่สามารถดูแลเองได้'},
+  {img:'cards/12.png', name:'การ์ดใบที่ 12',   a:'self', tip:'เป็นอาการที่สามารถดูแลเองได้'},
+  {img:'cards/13.png', name:'การ์ดใบที่ 13',   a:'doctor', tip:'เป็นสัญญาณเตือนที่ต้องติดต่อโรงพยาบาลทันที'},
+  {img:'cards/14.png', name:'การ์ดใบที่ 14',   a:'doctor', tip:'เป็นสัญญาณเตือนที่ต้องติดต่อโรงพยาบาลทันที'},
+  {img:'cards/15.png', name:'การ์ดใบที่ 15',   a:'doctor', tip:'เป็นสัญญาณเตือนที่ต้องติดต่อโรงพยาบาลทันที'},
+  {img:'cards/16.png', name:'การ์ดใบที่ 16',   a:'doctor', tip:'เป็นสัญญาณเตือนที่ต้องติดต่อโรงพยาบาลทันที'},
+  {img:'cards/17.png', name:'การ์ดใบที่ 17',   a:'doctor', tip:'เป็นสัญญาณเตือนที่ต้องติดต่อโรงพยาบาลทันที'},
+  {img:'cards/18.png', name:'การ์ดใบที่ 18',   a:'doctor', tip:'เป็นสัญญาณเตือนที่ต้องติดต่อโรงพยาบาลทันที'},
+  {img:'cards/19.png', name:'การ์ดใบที่ 19',   a:'doctor', tip:'เป็นสัญญาณเตือนที่ต้องติดต่อโรงพยาบาลทันที'},
+  {img:'cards/20.png', name:'การ์ดใบที่ 20',   a:'doctor', tip:'เป็นสัญญาณเตือนที่ต้องติดต่อโรงพยาบาลทันที'},
+  {img:'cards/21.png', name:'การ์ดใบที่ 21',   a:'doctor', tip:'เป็นสัญญาณเตือนที่ต้องติดต่อโรงพยาบาลทันที'},
+  {img:'cards/22.png', name:'การ์ดใบที่ 22',   a:'doctor', tip:'เป็นสัญญาณเตือนที่ต้องติดต่อโรงพยาบาลทันที'},
+  {img:'cards/23.png', name:'การ์ดใบที่ 23',   a:'doctor', tip:'เป็นสัญญาณเตือนที่ต้องติดต่อโรงพยาบาลทันที'},
+  {img:'cards/24.png', name:'การ์ดใบที่ 24',   a:'doctor', tip:'เป็นสัญญาณเตือนที่ต้องติดต่อโรงพยาบาลทันที'},
+];
+
+/* =====================================================
+   🎮 ระบบเกม (ไม่ต้องแก้ก็ได้)
+   ===================================================== */
+const LABEL = {self:'🏠 ดูแลเอง', doctor:'🏥 ติดต่อโรงพยาบาล'};
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const wait = ms => new Promise(r => setTimeout(r, ms));
+const pad = n => String(n).padStart(2, '0');
+
+let player = {}, picked = [], score = 0, current = null, startTime = 0, result = null;
+
+// ข้อความกติกาหน้าแรก อัปเดตตามการตั้งค่าให้เอง
+$('ruleN').textContent = CARDS_PER_GAME;
+$('ruleMax').textContent = CARDS_PER_GAME;
+$('ruleTotal').textContent = CARDS.length;
+
+// ตรวจความพร้อม: เตือนผู้สร้างเกมถ้ายังใส่เฉลยไม่ครบ
+const warns = [];
+const noAnswer = CARDS.map((c, i) => LABEL[c.a] ? 0 : i + 1).filter(Boolean);
+if (noAnswer.length) warns.push('ยังไม่ได้ใส่เฉลย (a) ของการ์ดลำดับที่ ' + noAnswer.join(', '));
+if (CARDS.length < CARDS_PER_GAME) warns.push('การ์ดมี ' + CARDS.length + ' ใบ น้อยกว่าจำนวนที่ต้องหยิบ (' + CARDS_PER_GAME + ' ใบ)');
+if (warns.length) {
+  $('setupWarn').innerHTML = '⚠️ <b>สำหรับผู้สร้างเกม</b><br>' + warns.map(esc).join('<br>');
+  $('setupWarn').hidden = false;
+}
+
+// โหลดรูปการ์ดทั้งหมดไว้ล่วงหน้า ตอนพลิกการ์ดรูปจะขึ้นทันที
+const imgCache = {};
+function preload(src) {
+  if (!imgCache[src]) {
+    imgCache[src] = new Promise(resolve => {
+      const im = new Image();
+      im.onload = () => resolve(true);
+      im.onerror = () => resolve(false);
+      im.src = src;
+    });
+  }
+  return imgCache[src];
+}
+let loadedCount = 0;
+const failed = [];
+$('loadStatus').textContent = '📥 กำลังเตรียมการ์ด...';
+CARDS.forEach(c => preload(c.img).then(ok => {
+  if (ok) loadedCount++; else failed.push(c.img);
+  const done = loadedCount + failed.length;
+  $('loadStatus').textContent =
+      done < CARDS.length ? '📥 กำลังเตรียมการ์ด ' + done + '/' + CARDS.length + ' ใบ...'
+    : failed.length      ? '⚠️ โหลดรูปไม่สำเร็จ ' + failed.length + ' ใบ: ' + failed.join(', ')
+    :                      '✅ การ์ดพร้อมแล้ว ' + CARDS.length + ' ใบ';
+}));
+
+// จำชื่อผู้เล่นไว้ เล่นรอบหน้าไม่ต้องพิมพ์ใหม่
+try { player = JSON.parse(localStorage.getItem('player')) || {}; } catch (e) {}
+$('name').value = player.name || '';
+$('group').value = player.group || '';
+
+function show(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('active', s.id === id));
+  window.scrollTo(0, 0);
+}
+
+function shuffle(arr) {                    // สลับลำดับแบบสุ่ม (Fisher–Yates)
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/* ---------- 1) เริ่มเกม ---------- */
+$('name').oninput = () => $('name').classList.remove('error');
+$('startBtn').onclick = () => {
+  const name = $('name').value.trim();
+  if (!name) { $('name').classList.add('error'); $('name').focus(); return; }
+  player = {name, group: $('group').value.trim()};
+  try { localStorage.setItem('player', JSON.stringify(player)); } catch (e) {}
+  newGame();
+};
+
+function newGame() {
+  const deck = shuffle(CARDS.map((c, i) => ({...c, id: i + 1})));   // สุ่มตำแหน่งการ์ดใหม่ทุกเกม
+  picked = []; score = 0; current = null; startTime = Date.now();
+  $('grid').innerHTML = '';
+  deck.forEach((card, i) => {
+    const b = document.createElement('button');
+    b.className = 'mini';
+    b.textContent = '?';
+    b.style.setProperty('--i', i);
+    b.onclick = () => pick(card, b);
+    $('grid').appendChild(b);
+  });
+  updateHud();
+  show('game');
+}
+
+function updateHud() {
+  $('count').textContent = picked.length + '/' + CARDS_PER_GAME;
+  $('score').textContent = score;
+  $('progress').style.width = (picked.length / CARDS_PER_GAME * 100) + '%';
+}
+
+/* ---------- 2) หยิบการ์ด + หงายการ์ด ---------- */
+async function pick(card, btn) {
+  if (current || picked.length >= CARDS_PER_GAME) return;
+  current = {card, btn};
+  btn.disabled = true;
+
+  const flip = $('flip');                  // คว่ำการ์ดใบใหญ่ก่อน (ไม่ให้เห็นรูปล่วงหน้า)
+  flip.classList.add('instant');
+  flip.classList.remove('flipped');
+  void flip.offsetWidth;
+  flip.classList.remove('instant');
+
+  $('cardNo').textContent = 'การ์ดใบที่ ' + (picked.length + 1) + '/' + CARDS_PER_GAME;
+  $('feedback').hidden = true;
+  $('answers').hidden = false;
+  $('answers').classList.remove('show');
+  $('modal').classList.add('open');
+  $('sheet').scrollTop = 0;
+  document.body.classList.add('lock');
+
+  // รอให้รูปโหลดเสร็จก่อนหงาย (ถ้าเน็ตช้า หลังการ์ดจะขึ้น ⏳)
+  let ready = false;
+  const loading = preload(card.img).then(ok => { ready = true; return ok; });
+  await wait(300);
+  if (!ready) $('backFace').textContent = '⏳';
+  const ok = await loading;
+
+  const img = $('cardImg');
+  img.hidden = !ok;
+  $('cardFallback').hidden = ok;
+  if (ok) {
+    img.src = card.img;
+    img.alt = card.name;
+    try { await Promise.race([img.decode(), wait(800)]); } catch (e) {}
+  } else {                                 // หาไฟล์รูปไม่เจอ: โชว์ชื่อการ์ดแทน เกมยังเล่นต่อได้
+    $('cardFallback').innerHTML = esc(card.name) + '<small>หาไฟล์รูปไม่เจอ: ' + esc(card.img) + '</small>';
+  }
+  $('backFace').textContent = '✚';
+  flip.classList.add('flipped');                                // หงายการ์ด
+  setTimeout(() => $('answers').classList.add('show'), 600);    // โชว์ปุ่มตอบหลังหงายเสร็จ
+}
+
+/* ---------- 3) ตอบคำถาม ---------- */
+function answer(choice) {
+  if (!current || current.done) return;
+  current.done = true;
+  const {card, btn} = current;
+  const correct = (choice === card.a);
+  if (correct) score++;
+  picked.push({...card, choice, correct});
+
+  btn.textContent = '';                    // การ์ดในกองหงายโชว์รูปจริง + เครื่องหมาย ✓/✗
+  btn.dataset.mark = correct ? '✓' : '✗';
+  btn.style.backgroundImage = 'url("' + card.img + '")';
+  btn.classList.add('done', correct ? 'right' : 'wrong');
+  updateHud();
+
+  $('answers').hidden = true;
+  $('feedback').hidden = false;
+  $('fbTitle').textContent = correct ? '✅ ถูกต้อง! +1 คะแนน' : '❌ ยังไม่ถูกนะ';
+  $('fbTitle').className = 'fb-title ' + (correct ? 'ok' : 'no');
+  $('fbAnswer').textContent = 'คำตอบที่ถูก: ' + (LABEL[card.a] || '❓ ยังไม่ได้ใส่เฉลย');
+  $('fbTip').hidden = !card.tip;
+  $('fbTip').textContent = '💡 ' + card.tip;
+  $('nextBtn').textContent = picked.length < CARDS_PER_GAME ? 'หยิบการ์ดใบต่อไป ➜' : 'ดูผลคะแนน 🏆';
+  $('feedback').scrollIntoView({behavior: 'smooth', block: 'nearest'});
+  if (navigator.vibrate) navigator.vibrate(correct ? 60 : [80, 60, 80]);   // สั่น (Android)
+}
+
+$('nextBtn').onclick = () => {
+  $('modal').classList.remove('open');
+  document.body.classList.remove('lock');
+  current = null;
+  if (picked.length >= CARDS_PER_GAME) showResult();
+};
+
+/* ---------- 4) สรุปผล ---------- */
+function showResult() {
+  const sec = Math.round((Date.now() - startTime) / 1000);
+  const pct = score / CARDS_PER_GAME;
+  $('finalScore').innerHTML = score + '<small>/' + CARDS_PER_GAME + '</small>';
+  $('scoreMsg').textContent =
+      pct === 1  ? 'สุดยอด! ได้คะแนนเต็ม 🏆'
+    : pct >= 0.8 ? 'เก่งมาก! ความรู้แน่นสุด ๆ 👏'
+    : pct >= 0.5 ? 'ดีแล้ว! ทบทวนอีกนิดจะเก่งขึ้น 💪'
+    :              'ไม่เป็นไร ดูเฉลยแล้วลองใหม่นะ 📚';
+  $('playerInfo').textContent = '👤 ' + player.name + (player.group ? ' (' + player.group + ')' : '')
+    + '  ⏱️ ' + Math.floor(sec / 60) + ' นาที ' + (sec % 60) + ' วินาที';
+  $('review').innerHTML = picked.map((p, i) => `
+    <li class="${p.correct ? '' : 'wrong'}">
+      <img src="${esc(p.img)}" alt="${esc(p.name)}">
+      <div>
+        <b>${i + 1}. ${esc(p.name)}</b><br>
+        <small>${p.correct ? '✅ ตอบถูก' : '❌ คุณตอบ ' + LABEL[p.choice]}<br>เฉลย: ${LABEL[p.a] || '-'}</small>
+        ${p.tip ? '<br><small>💡 ' + esc(p.tip) + '</small>' : ''}
+      </div>
+    </li>`).join('');
+
+  result = {                               // ข้อมูลที่ส่งไป Google Sheets (รูปแบบเดิม)
+    name: player.name,
+    group: player.group,
+    score: score,
+    total: CARDS_PER_GAME,
+    durationSec: sec,
+    details: picked.map(p => '#' + pad(p.id) + (p.correct ? '✓' : '✗')).join(' ')
+  };
+  show('result');
+  sendScore();
+}
+
+/* ---------- 5) ส่งคะแนนไป Google Sheets ---------- */
+async function sendScore() {
+  const status = $('sendStatus');
+  $('retryBtn').hidden = true;
+  if (!SCRIPT_URL.startsWith('https://')) {
+    status.textContent = '⚠️ โหมดทดสอบ: ยังไม่ได้ใส่ SCRIPT_URL คะแนนจึงยังไม่ถูกส่ง';
+    return;
+  }
+  status.textContent = '⏳ กำลังส่งคะแนน...';
+  try {
+    const res = await fetch(SCRIPT_URL, {method: 'POST', body: JSON.stringify(result)});
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error);
+    status.textContent = '✅ บันทึกคะแนนเรียบร้อยแล้ว';
+  } catch (err) {
+    console.error(err);
+    status.textContent = '❌ ส่งคะแนนไม่สำเร็จ ตรวจสอบอินเทอร์เน็ตแล้วกดส่งอีกครั้ง';
+    $('retryBtn').hidden = false;
+  }
+}
+
+$('retryBtn').onclick = sendScore;
+$('againBtn').onclick = () => show('start');
+
+// แตะรูปในหน้าสรุปผล เพื่อดูการ์ดขนาดใหญ่
+$('review').onclick = e => {
+  const im = e.target.closest('img');
+  if (!im) return;
+  $('zoomImg').src = im.src;
+  $('zoom').hidden = false;
+};
+$('zoom').onclick = () => { $('zoom').hidden = true; };
+</script>
+</body>
+</html>
